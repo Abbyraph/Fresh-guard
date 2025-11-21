@@ -81,6 +81,12 @@ export default {
           busy: "rgb(239 68 68)",
           offline: "rgb(156 163 175)",
         },
+        expiration: {
+          fresh: "rgb(34 197 94)",
+          soon: "rgb(234 179 8)",
+          urgent: "rgb(239 68 68)",
+          expired: "rgb(156 163 175)",
+        },
       },
       fontFamily: {
         sans: ["var(--font-sans)"],
