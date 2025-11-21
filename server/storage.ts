@@ -1,83 +1,78 @@
-import { type User, type InsertUser, type Item, type InsertItem } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { type User, type UpsertUser, type Item, type InsertItem, users, items } from "@shared/schema";
+import { db } from "./db";
+import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  upsertUser(user: UpsertUser): Promise<User>;
   
-  getAllItems(): Promise<Item[]>;
-  getItem(id: string): Promise<Item | undefined>;
-  createItem(item: InsertItem): Promise<Item>;
-  updateItem(id: string, item: Partial<InsertItem>): Promise<Item | undefined>;
-  deleteItem(id: string): Promise<boolean>;
+  getItemsByUserId(userId: string): Promise<Item[]>;
+  getItem(id: string, userId: string): Promise<Item | undefined>;
+  createItem(item: InsertItem, userId: string): Promise<Item>;
+  updateItem(id: string, userId: string, item: Partial<InsertItem>): Promise<Item | undefined>;
+  deleteItem(id: string, userId: string): Promise<boolean>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-  private items: Map<string, Item>;
-
-  constructor() {
-    this.users = new Map();
-    this.items = new Map();
-  }
-
+export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
     return user;
   }
 
-  async getAllItems(): Promise<Item[]> {
-    return Array.from(this.items.values());
+  async getItemsByUserId(userId: string): Promise<Item[]> {
+    return await db.select().from(items).where(eq(items.userId, userId));
   }
 
-  async getItem(id: string): Promise<Item | undefined> {
-    return this.items.get(id);
+  async getItem(id: string, userId: string): Promise<Item | undefined> {
+    const [item] = await db
+      .select()
+      .from(items)
+      .where(and(eq(items.id, id), eq(items.userId, userId)));
+    return item || undefined;
   }
 
-  async createItem(insertItem: InsertItem): Promise<Item> {
-    const id = randomUUID();
-    const now = new Date();
-    const item: Item = {
-      ...insertItem,
-      id,
-      createdAt: now,
-      barcode: insertItem.barcode || null,
-      imageUrl: insertItem.imageUrl || null,
-    };
-    this.items.set(id, item);
+  async createItem(insertItem: InsertItem, userId: string): Promise<Item> {
+    const [item] = await db
+      .insert(items)
+      .values({
+        ...insertItem,
+        userId,
+      })
+      .returning();
     return item;
   }
 
-  async updateItem(id: string, updateData: Partial<InsertItem>): Promise<Item | undefined> {
-    const existingItem = this.items.get(id);
-    if (!existingItem) {
-      return undefined;
-    }
-
-    const updatedItem: Item = {
-      ...existingItem,
-      ...updateData,
-    };
-    this.items.set(id, updatedItem);
-    return updatedItem;
+  async updateItem(id: string, userId: string, updateData: Partial<InsertItem>): Promise<Item | undefined> {
+    const [item] = await db
+      .update(items)
+      .set(updateData)
+      .where(and(eq(items.id, id), eq(items.userId, userId)))
+      .returning();
+    return item || undefined;
   }
 
-  async deleteItem(id: string): Promise<boolean> {
-    return this.items.delete(id);
+  async deleteItem(id: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(items)
+      .where(and(eq(items.id, id), eq(items.userId, userId)))
+      .returning();
+    return result.length > 0;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

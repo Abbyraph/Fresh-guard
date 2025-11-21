@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Item } from "@shared/schema";
 import { FoodItemCard } from "@/components/FoodItemCard";
@@ -10,8 +10,10 @@ import { EmptyState } from "@/components/EmptyState";
 import { LoadingState } from "@/components/LoadingState";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Camera } from "lucide-react";
+import { Plus, Camera, Apple, LogOut } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
+import { isUnauthorizedError } from "@/lib/authUtils";
 
 export default function Dashboard() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -20,8 +22,23 @@ export default function Dashboard() {
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"expiration" | "name" | "category">("expiration");
+  const [scannedProduct, setScannedProduct] = useState<{ name?: string; barcode?: string; imageUrl?: string } | null>(null);
   
   const { toast } = useToast();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      toast({
+        title: "Unauthorized",
+        description: "You are logged out. Logging in again...",
+        variant: "destructive",
+      });
+      setTimeout(() => {
+        window.location.href = "/api/auth/google";
+      }, 500);
+    }
+  }, [isAuthenticated, authLoading, toast]);
 
   const { data: items = [], isLoading } = useQuery<Item[]>({
     queryKey: ["/api/items"],
@@ -37,7 +54,18 @@ export default function Dashboard() {
         description: "Item added successfully",
       });
     },
-    onError: () => {
+    onError: (error) => {
+      if (isUnauthorizedError(error as Error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/auth/google";
+        }, 500);
+        return;
+      }
       toast({
         title: "Error",
         description: "Failed to add item",
@@ -58,7 +86,18 @@ export default function Dashboard() {
         description: "Item updated successfully",
       });
     },
-    onError: () => {
+    onError: (error) => {
+      if (isUnauthorizedError(error as Error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/auth/google";
+        }, 500);
+        return;
+      }
       toast({
         title: "Error",
         description: "Failed to update item",
@@ -76,7 +115,18 @@ export default function Dashboard() {
         description: "Item deleted successfully",
       });
     },
-    onError: () => {
+    onError: (error) => {
+      if (isUnauthorizedError(error as Error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/auth/google";
+        }, 500);
+        return;
+      }
       toast({
         title: "Error",
         description: "Failed to delete item",
@@ -96,12 +146,37 @@ export default function Dashboard() {
     }
   };
 
-  const handleScanSuccess = (barcode: string) => {
-    setAddDialogOpen(true);
-    toast({
-      title: "Barcode Scanned",
-      description: `Barcode: ${barcode}`,
-    });
+  const handleScanSuccess = async (barcode: string) => {
+    try {
+      const response = await fetch(`/api/barcode/${barcode}`);
+      const data = await response.json();
+      
+      if (data.success && data.product) {
+        setScannedProduct({
+          name: data.product.name,
+          barcode: data.product.barcode,
+          imageUrl: data.product.imageUrl,
+        });
+        toast({
+          title: "Product Found",
+          description: `${data.product.name}`,
+        });
+      } else {
+        setScannedProduct({ barcode });
+        toast({
+          title: "Barcode Scanned",
+          description: data.message || `Barcode: ${barcode}`,
+        });
+      }
+      setAddDialogOpen(true);
+    } catch (error) {
+      setScannedProduct({ barcode });
+      toast({
+        title: "Barcode Scanned",
+        description: `Barcode: ${barcode}`,
+      });
+      setAddDialogOpen(true);
+    }
   };
 
   const filteredItems = items.filter((item) =>
@@ -124,13 +199,24 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-20 bg-card border-b border-card-border shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <h1 className="text-3xl font-bold text-foreground" data-testid="text-app-title">
-            FreshGuard
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Track your food and reduce waste
-          </p>
+        <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Apple className="h-6 w-6 text-primary" />
+              <h1 className="text-3xl font-bold text-foreground" data-testid="text-app-title">
+                FreshGuard
+              </h1>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              Track your food and reduce waste
+            </p>
+          </div>
+          <Button variant="outline" size="sm" asChild data-testid="button-logout">
+            <a href="/api/auth/logout">
+              <LogOut className="h-4 w-4 mr-2" />
+              Log Out
+            </a>
+          </Button>
         </div>
       </header>
 
@@ -200,9 +286,15 @@ export default function Dashboard() {
 
       <AddItemDialog
         open={addDialogOpen}
-        onOpenChange={setAddDialogOpen}
+        onOpenChange={(open) => {
+          setAddDialogOpen(open);
+          if (!open) {
+            setScannedProduct(null);
+          }
+        }}
         onSubmit={(data) => createMutation.mutate(data)}
         isPending={createMutation.isPending}
+        initialValues={scannedProduct || undefined}
       />
 
       <EditItemDialog

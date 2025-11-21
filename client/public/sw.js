@@ -2,7 +2,7 @@ const CACHE_NAME = 'freshguard-v1';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/logo.png',
+  '/favicon.png',
   '/manifest.json',
 ];
 

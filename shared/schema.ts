@@ -1,7 +1,8 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, index, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { relations } from "drizzle-orm";
 
 // Food categories
 export const CATEGORIES = [
@@ -25,9 +26,32 @@ export const SHELF_LIFE_DEFAULTS: Record<Category, number> = {
   "Other": 14
 };
 
+// Session storage table - Required for Replit Auth
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)],
+);
+
+// Users table - Required for Replit Auth
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email").unique(),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Food items table
 export const items = pgTable("items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   category: text("category").notNull(),
   purchaseDate: timestamp("purchase_date").notNull(),
@@ -40,6 +64,7 @@ export const items = pgTable("items", {
 export const insertItemSchema = createInsertSchema(items).omit({
   id: true,
   createdAt: true,
+  userId: true,
 }).extend({
   name: z.string().min(1, "Name is required"),
   category: z.enum(CATEGORIES),
@@ -51,6 +76,14 @@ export const insertItemSchema = createInsertSchema(items).omit({
 
 export type InsertItem = z.infer<typeof insertItemSchema>;
 export type Item = typeof items.$inferSelect;
+
+export const insertUserSchema = createInsertSchema(users).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type UpsertUser = typeof users.$inferInsert;
+export type User = typeof users.$inferSelect;
 
 // Helper function to calculate expiration status
 export type ExpirationStatus = "fresh" | "soon" | "urgent" | "expired";
@@ -85,17 +118,14 @@ export function getTimeRemaining(expirationDate: Date | string): string {
   return `${daysRemaining}d remaining`;
 }
 
-// Users table (kept for future auth)
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-});
+// Relations
+export const usersRelations = relations(users, ({ many }) => ({
+  items: many(items),
+}));
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-});
-
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export const itemsRelations = relations(items, ({ one }) => ({
+  user: one(users, {
+    fields: [items.userId],
+    references: [users.id],
+  }),
+}));

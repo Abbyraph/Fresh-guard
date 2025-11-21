@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertItemSchema, CATEGORIES, SHELF_LIFE_DEFAULTS, type Category } from "@shared/schema";
@@ -16,6 +16,11 @@ interface AddItemDialogProps {
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: any) => void;
   isPending?: boolean;
+  initialValues?: {
+    name?: string;
+    barcode?: string;
+    imageUrl?: string;
+  };
 }
 
 const formSchema = insertItemSchema.extend({
@@ -25,7 +30,7 @@ const formSchema = insertItemSchema.extend({
 
 type FormData = z.infer<typeof formSchema>;
 
-export function AddItemDialog({ open, onOpenChange, onSubmit, isPending }: AddItemDialogProps) {
+export function AddItemDialog({ open, onOpenChange, onSubmit, isPending, initialValues }: AddItemDialogProps) {
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -34,8 +39,31 @@ export function AddItemDialog({ open, onOpenChange, onSubmit, isPending }: AddIt
       purchaseDate: format(new Date(), "yyyy-MM-dd"),
       expirationDate: "",
       barcode: "",
+      imageUrl: "",
     },
   });
+
+  useEffect(() => {
+    if (open && initialValues) {
+      form.reset({
+        name: initialValues.name || "",
+        category: "Other",
+        purchaseDate: format(new Date(), "yyyy-MM-dd"),
+        expirationDate: "",
+        barcode: initialValues.barcode || "",
+        imageUrl: initialValues.imageUrl,
+      });
+    } else if (open && !initialValues) {
+      form.reset({
+        name: "",
+        category: "Other",
+        purchaseDate: format(new Date(), "yyyy-MM-dd"),
+        expirationDate: "",
+        barcode: "",
+        imageUrl: "",
+      });
+    }
+  }, [open, initialValues, form]);
 
   const calculateExpiration = (category: Category, purchaseDate: string) => {
     if (!purchaseDate) return "";
