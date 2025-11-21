@@ -1,0 +1,284 @@
+Product Requirements Document (PRD)
+Project: FreshGuard – Food Expiration Tracker & Reminders
+Version 1.0
+1. Overview
+1.1 Problem Statement
+
+People regularly buy groceries, forget about them, and only rediscover items after they’ve expired—leading to waste and unnecessary spending. Existing tools are too manual or do not integrate barcode scanning, reminders, or intuitive inventory visualization.
+
+1.2 Solution
+
+FreshGuard is a progressive web app (PWA) that helps users track food items in their refrigerator or pantry. Users can scan barcodes or manually add items, and the system will assign an expected shelf life. Items are displayed in a visual “fridge dashboard,” and users receive automated reminders before items expire.
+
+1.3 Goals
+
+Reduce food waste
+
+Simplify tracking through barcode scanning
+
+Create a clean, intuitive dashboard
+
+Provide timely notifications (push/email)
+
+1.4 Target Users
+
+College students
+
+Families
+
+Busy professionals
+
+2. Key Features
+2.1 Barcode Scanning
+
+Use mobile device camera to scan UPC/EAN barcodes.
+
+Identify products via barcode lookup API.
+
+If item is not found, prompt user to create a custom entry.
+
+Auto-suggest shelf life based on category (e.g., dairy, produce, meat).
+
+Functional Requirements
+
+FR-1: User can open a scanning interface using the device camera.
+
+FR-2: System sends barcode to third-party lookup API.
+
+FR-3: If product match exists → return product name + category.
+
+FR-4: If no match → ask user for name, category, and optionally upload image.
+
+2.2 Manual Item Entry
+
+Add items without barcodes.
+
+Category selector: Produce, Dairy, Meat, Pantry, Frozen, Other.
+
+User enters purchase date; expiration date autocalculated.
+
+Functional Requirements
+
+FR-5: User can manually enter product name, category, and purchase date.
+
+FR-6: System calculates expiration from internal shelf-life table.
+
+FR-7: User may override shelf-life with a custom expiration date.
+
+2.3 Shelf-Life Database
+
+Preloaded table of average shelf lives for common food categories.
+
+Editable by users (per item).
+
+Functional Requirements
+
+FR-8: System contains default shelf-life values.
+
+FR-9: Shelf life is applied automatically based on category.
+
+FR-10: Values stored in SQLite database via Flask backend.
+
+2.4 Fridge Dashboard
+
+Grid or card-based layout.
+
+Items sorted by time-to-expiration.
+
+Color coding:
+
+Green: > 72 hours left
+
+Yellow: 24–72 hours
+
+Red: < 24 hours
+
+Gray: expired
+
+Filters: category, added date, soonest-to-expire.
+
+Functional Requirements
+
+FR-11: Show name, date added, expiration date, and time remaining.
+
+FR-12: Allow edit/delete from item card.
+
+FR-13: Allow filtering by category and expiration urgency.
+
+2.5 Reminders & Notifications
+
+Push notifications (PWA) and/or email alerts.
+
+User selects frequency:
+
+Immediate when < 24 hours left
+
+Daily digest
+
+Weekly digest
+
+Functional Requirements
+
+FR-14: User can enable push notifications (browser/device).
+
+FR-15: User can provide email for alerts.
+
+FR-16: Scheduled background jobs (cron or APScheduler) send reminders.
+
+FR-17: Expiration logic checks timestamps daily.
+
+2.6 Progressive Web App Support
+
+Installable on iOS/Android
+
+Offline storage for previously-loaded data
+
+Background sync for reminders
+
+Functional Requirements
+
+FR-18: App includes a Web Manifest and service worker.
+
+FR-19: Offline caching of key UI screens.
+
+FR-20: Barcode scanning must work offline (cached JS library).
+
+2.7 Authentication (Optional v1)
+
+Email/password OR Google login.
+
+Local anonymous mode allowed.
+
+Functional Requirements
+
+FR-21: Secure login (JWT or Flask sessions).
+
+FR-22: Users can remain anonymous, with local storage only.
+
+3. Non-Functional Requirements
+3.1 Performance
+
+Barcode scan response < 1.5 seconds.
+
+Dashboard load time < 1 second on local data.
+
+3.2 Security
+
+Store minimal data.
+
+HTTPS required.
+
+Do not store credit card or sensitive personal information.
+
+3.3 Reliability
+
+Reminders must run daily without manual triggers.
+
+Offline mode must support viewing (not full editing).
+
+4. Architecture & Tech Stack
+4.1 Frontend
+
+JavaScript + Bootstrap for UI
+
+Camera-based barcode scanning (e.g., QuaggaJS or html5-qrcode)
+
+Service Worker for PWA offline caching
+
+4.2 Backend
+
+Flask (Python)
+
+Routes for:
+
+Item CRUD
+
+Notification scheduling
+
+User authentication (optional)
+
+Background scheduler:
+
+APScheduler or cron to trigger daily expiration checks
+
+4.3 Database
+
+SQLite
+Tables:
+
+users
+
+items
+
+shelf_life
+
+settings (notification preferences)
+
+4.4 External Services
+
+Barcode lookup API (e.g., UPCItemDB)
+
+Email API (SendGrid or Flask-Mail)
+
+5. User Flows
+5.1 Adding an Item (Barcode)
+
+User taps Scan Item
+
+Camera opens
+
+Scan success → query barcode API
+
+API returns name/category
+
+System applies shelf life
+
+User confirms → item saved → appears in dashboard
+
+5.2 Adding an Item (Manual)
+
+User clicks Add Item
+
+Enters name, category, purchase date
+
+System suggests expiration date
+
+User saves
+
+5.3 Expiration Reminder
+
+Daily scheduler runs
+
+Find items within user’s notification range
+
+Send push or email reminder
+
+Mark reminder as sent in log
+
+User receives notification
+
+6. UI Wireframe Summaries
+
+(Descriptions only — can provide Figma-style wireframes if you want.)
+
+Dashboard
+
+Grid of cards
+
+Category filter bar at top
+
+Floating “+ Add” and “Scan” buttons
+
+Item Detail
+
+Name, category, added date, expiration
+
+Edit & delete buttons
+
+Settings
+
+Notification methods
+
+Reminder frequency
+
+Export data
