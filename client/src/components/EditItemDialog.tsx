@@ -41,7 +41,7 @@ export function EditItemDialog({ open, onOpenChange, item, onSubmit, isPending }
     if (item) {
       form.reset({
         name: item.name,
-        category: item.category,
+        category: item.category as any,
         purchaseDate: format(new Date(item.purchaseDate), "yyyy-MM-dd"),
         expirationDate: format(new Date(item.expirationDate), "yyyy-MM-dd"),
         barcode: item.barcode || "",

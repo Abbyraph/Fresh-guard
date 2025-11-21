@@ -54,6 +54,8 @@ export class MemStorage implements IStorage {
       ...insertItem,
       id,
       createdAt: now,
+      barcode: insertItem.barcode || null,
+      imageUrl: insertItem.imageUrl || null,
     };
     this.items.set(id, item);
     return item;
