@@ -38,9 +38,26 @@ export async function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  const callbackURL = process.env.NODE_ENV === "production" 
-    ? `${process.env.REPL_SLUG}.replit.app/api/auth/callback`
-    : "http://localhost:5000/api/auth/callback";
+  const normalizeBaseUrl = (url?: string | null) => {
+    if (!url) return undefined;
+    return url.endsWith("/") ? url.slice(0, -1) : url;
+  };
+
+  const productionBaseUrl =
+    normalizeBaseUrl(process.env.APP_BASE_URL) ??
+    normalizeBaseUrl(process.env.RENDER_EXTERNAL_URL) ??
+    (process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : undefined);
+
+  const callbackURL =
+    process.env.NODE_ENV === "production"
+      ? `${productionBaseUrl ?? ""}/api/auth/callback`
+      : "http://localhost:5000/api/auth/callback";
+
+  if (process.env.NODE_ENV === "production" && !productionBaseUrl) {
+    console.warn(
+      "⚠️  APP_BASE_URL (or RENDER_EXTERNAL_URL) is not set. Google OAuth will likely fail in production.",
+    );
+  }
 
   passport.use(
     new GoogleStrategy(
